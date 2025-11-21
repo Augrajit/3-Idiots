@@ -1,6 +1,7 @@
 #include "transaction_cache.h"
 #include <SPIFFS.h>
 #include <ArduinoJson.h>
+#include <vector>
 #include "../utils/logger.h"
 
 #define CACHE_FILE "/transactions.json"

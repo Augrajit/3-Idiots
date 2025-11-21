@@ -2,6 +2,7 @@
 #include "../storage/transaction_cache.h"
 #include "../utils/logger.h"
 #include "../config/data_types.h"
+#include <vector>
 
 FraudCheckResult check_fraud_rules(FaceVerificationResult fvr, 
                                     std::vector<Transaction> recent_txns) {
