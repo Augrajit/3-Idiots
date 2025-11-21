@@ -10,6 +10,7 @@ String Helpers::getStateName(SystemState state) {
     case DECISION: return "DECISION";
     case MANAGER_APPROVAL_WAIT: return "MANAGER_APPROVAL_WAIT";
     case TRANSACTION_LOG: return "TRANSACTION_LOG";
+    case ERROR_STATE: return "ERROR_STATE";
     default: return "UNKNOWN";
   }
 }

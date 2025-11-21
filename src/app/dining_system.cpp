@@ -6,12 +6,14 @@
 #include "../modules/esp_cam_module.h"
 #include "../services/api_client.h"
 #include "../services/fraud_detection.h"
-#include "../services/face_recognition_service.h"
+#include "../services/wifi_manager.h"
+#include "../services/offline_service.h"
 #include "../storage/transaction_cache.h"
 #include "../ui/manager_approval.h"
 #include "../power_management.h"
 #include "../utils/logger.h"
 #include "../utils/helpers.h"
+#include "../utils/error_handler.h"
 #include <vector>
 
 DiningSystem::DiningSystem() {
@@ -49,9 +51,11 @@ void DiningSystem::init(SystemConfig config) {
   
   power_init();
   
-  // Connect WiFi
+  // Initialize WiFi and API
   if (config.wifi_ssid.length() > 0) {
-    api_connect_wifi(config.wifi_ssid, config.wifi_password);
+    wifi_init(config.wifi_ssid, config.wifi_password);
+    String base_url = "http://" + config.server_ip + ":" + String(config.server_port);
+    api_init(base_url);
     api_set_server(config.server_ip, config.server_port);
   }
   
@@ -62,7 +66,9 @@ void DiningSystem::init(SystemConfig config) {
 }
 
 void DiningSystem::update() {
-  // Check motion sensor
+  // Continuous monitoring
+  wifi_check_connection();
+  keyboard_scan();
   bool motion = motion_detected();
   
   // Handle motion callback manually
@@ -72,6 +78,13 @@ void DiningSystem::update() {
   
   // Check power management
   power_check_sleep(system_config.motion_timeout_sec * 1000);
+  
+  // Periodic tasks (every 30 seconds)
+  static unsigned long last_periodic = 0;
+  if (millis() - last_periodic > 30000) {
+    last_periodic = millis();
+    sync_offline_transactions();
+  }
   
   // Update state machine
   switch (current_state) {
@@ -96,12 +109,15 @@ void DiningSystem::update() {
     case TRANSACTION_LOG:
       state_transaction_log();
       break;
+    case ERROR_STATE:
+      state_error();
+      break;
   }
   
-  // Scan keyboard
-  keyboard_scan();
+  // Update display with status
+  update_display_with_status();
   
-  delay(20); // 50Hz loop
+  delay(50); // 20Hz
 }
 
 void DiningSystem::state_idle() {
@@ -155,13 +171,41 @@ void DiningSystem::state_verifying() {
   FaceVerificationResult fvr;
   
   if (api_is_connected()) {
-    fvr = api_verify_face(current_rfid_uid, current_face_image);
+    String response = api_face_verify(current_rfid_uid, current_face_image);
+    if (response.length() > 0) {
+      fvr = FaceVerificationResult::fromJson(response);
+    } else {
+      handle_error(ERR_API_TIMEOUT, "Face verification timeout");
+      // Fall back to offline mode
+      if (is_offline_mode()) {
+        current_fraud_result = check_offline_eligibility("");
+        current_fraud_result.requires_approval = true;
+        transition_to(DECISION);
+        return;
+      }
+      transition_to(WAITING_FOR_CARD);
+      return;
+    }
   } else {
-    // Offline mode - basic check
+    // Offline mode
     Logger::logInfo("Offline mode: Limited verification");
-    fvr.success = false;
-    fvr.reason = "Network unavailable - Offline mode";
+    is_offline_mode();
+    current_fraud_result = check_offline_eligibility("");
+    current_fraud_result.requires_approval = true;
+    // Create minimal verification result for offline
+    fvr.success = true;
+    fvr.student_id = "";
+    fvr.student_name = "Unknown (Offline)";
+    fvr.confidence = 0.0;
+    fvr.eligible = true;
+    fvr.balance = 0.0;
+    fvr.meal_plan = "unknown";
+    fvr.already_served = false;
     fvr.needs_approval = true;
+    fvr.reason = "Offline mode - Manager approval required";
+    current_verification_result = fvr;
+    transition_to(DECISION);
+    return;
   }
   
   if (fvr.success) {
@@ -170,11 +214,12 @@ void DiningSystem::state_verifying() {
     
     // Check fraud rules
     std::vector<Transaction> recent_txns = cache_get_recent_transactions(6);
-    current_fraud_result = check_fraud_rules(fvr, recent_txns);
+    current_fraud_result = check_all_fraud_rules(current_rfid_uid, fvr, recent_txns);
     
     transition_to(DECISION);
   } else {
     Logger::logError("Verification: Failed - " + fvr.reason);
+    handle_error(ERR_FACE_RECOGNITION_FAIL, fvr.reason);
     display_error("Verification failed: " + fvr.reason);
     delay(3000);
     transition_to(WAITING_FOR_CARD);
@@ -214,6 +259,7 @@ void DiningSystem::state_manager_approval_wait() {
   
   ApprovalDecision decision = wait_manager_approval(
     current_verification_result.student_name,
+    current_verification_result.student_id,
     reason,
     60
   );
@@ -230,6 +276,7 @@ void DiningSystem::state_manager_approval_wait() {
     delay(2000);
   } else {
     Logger::logInfo("Manager: DENIED");
+    handle_error(ERR_MANAGER_DENIED, "Manager denied transaction");
     create_transaction("denied", "Manager denied");
     display_error("Contact Manager");
     delay(3000);
@@ -244,13 +291,37 @@ void DiningSystem::state_transaction_log() {
     cache_add_transaction(current_transaction);
     
     if (api_is_connected()) {
-      api_log_transaction(current_transaction);
+      if (api_log_transaction(current_transaction)) {
+        current_transaction.synced = true;
+        cache_mark_synced(current_transaction.id);
+      }
+    } else {
+      // Queue for offline sync
+      queue_offline_transaction(current_transaction);
     }
   }
   
   // Wait a bit then return to idle
   delay(2000);
   transition_to(IDLE);
+}
+
+void DiningSystem::state_error() {
+  // Display error and wait for motion to reset
+  static bool error_displayed = false;
+  if (!error_displayed) {
+    ErrorCode last_err = get_last_error();
+    String msg = get_user_message(last_err);
+    String recovery = get_error_recovery_action(last_err);
+    display_error(msg + "\n" + recovery);
+    error_displayed = true;
+  }
+  
+  // Reset on motion or after 10 seconds
+  if (motion_detected() || (millis() - last_state_change > 10000)) {
+    error_displayed = false;
+    transition_to(IDLE);
+  }
 }
 
 void DiningSystem::transition_to(SystemState next_state) {
@@ -278,6 +349,7 @@ void DiningSystem::handle_keyboard_input(int key) {
 
 void DiningSystem::create_transaction(String status, String reason) {
   Transaction t;
+  t.id = "TXN_" + String(millis()) + "_" + String(random(1000, 9999));
   t.timestamp = Helpers::getCurrentTimestamp();
   t.student_id = current_verification_result.student_id;
   t.student_name = current_verification_result.student_name;
@@ -288,8 +360,19 @@ void DiningSystem::create_transaction(String status, String reason) {
   t.reason = reason;
   t.fraud_alert = current_fraud_result.severity >= 2;
   t.face_confidence = current_verification_result.confidence;
+  t.synced = false;
+  t.offline_mode = is_offline_mode();
   
   current_transaction = t;
+}
+
+void DiningSystem::update_display_with_status() {
+  // Show WiFi status in corner if needed
+  static unsigned long last_status_update = 0;
+  if (millis() - last_status_update > 5000) {
+    last_status_update = millis();
+    // Status updates are handled in individual states
+  }
 }
 
 SystemState DiningSystem::get_state() {

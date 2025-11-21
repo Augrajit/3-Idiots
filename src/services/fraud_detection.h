@@ -5,8 +5,9 @@
 #include <vector>
 #include "../config/data_types.h"
 
-FraudCheckResult check_fraud_rules(FaceVerificationResult fvr, 
-                                    std::vector<Transaction> recent_txns);
+FraudCheckResult check_all_fraud_rules(String rfid_uid,
+                                       FaceVerificationResult fvr, 
+                                       std::vector<Transaction> recent_txns);
 
 #endif
 

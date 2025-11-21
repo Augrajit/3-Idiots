@@ -3,8 +3,10 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <vector>
 
 struct Transaction {
+  String id; // Unique transaction ID
   unsigned long timestamp;
   String student_id;
   String student_name;
@@ -15,9 +17,12 @@ struct Transaction {
   String reason;
   bool fraud_alert;
   float face_confidence;
+  bool synced; // Whether synced to server
+  bool offline_mode; // Whether created in offline mode
   
   String toJson() {
     JsonDocument doc;
+    doc["id"] = id;
     doc["timestamp"] = timestamp;
     doc["student_id"] = student_id;
     doc["student_name"] = student_name;
@@ -28,6 +33,8 @@ struct Transaction {
     doc["reason"] = reason;
     doc["fraud_alert"] = fraud_alert;
     doc["face_confidence"] = face_confidence;
+    doc["synced"] = synced;
+    doc["offline_mode"] = offline_mode;
     
     String result;
     serializeJson(doc, result);
@@ -39,6 +46,7 @@ struct Transaction {
     JsonDocument doc;
     deserializeJson(doc, json);
     
+    t.id = doc["id"] | "";
     t.timestamp = doc["timestamp"] | 0;
     t.student_id = doc["student_id"] | "";
     t.student_name = doc["student_name"] | "";
@@ -49,6 +57,8 @@ struct Transaction {
     t.reason = doc["reason"] | "";
     t.fraud_alert = doc["fraud_alert"] | false;
     t.face_confidence = doc["face_confidence"] | 0.0;
+    t.synced = doc["synced"] | false;
+    t.offline_mode = doc["offline_mode"] | false;
     
     return t;
   }
@@ -91,6 +101,7 @@ struct FraudCheckResult {
   bool requires_approval;
   String alert_reason;
   int severity; // 0=none, 1=warning, 2=critical
+  std::vector<String> triggered_rules;
 };
 
 enum ApprovalDecision {
@@ -107,7 +118,8 @@ enum SystemState {
   VERIFYING,
   DECISION,
   MANAGER_APPROVAL_WAIT,
-  TRANSACTION_LOG
+  TRANSACTION_LOG,
+  ERROR_STATE
 };
 
 struct SystemConfig {

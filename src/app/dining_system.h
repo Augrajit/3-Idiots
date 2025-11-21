@@ -22,9 +22,11 @@ private:
   void state_decision();
   void state_manager_approval_wait();
   void state_transaction_log();
+  void state_error();
   void transition_to(SystemState next_state);
   void handle_keyboard_input(int key);
   void create_transaction(String status, String reason);
+  void update_display_with_status();
   
 public:
   DiningSystem();
