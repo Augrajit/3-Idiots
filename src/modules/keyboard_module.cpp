@@ -2,10 +2,21 @@
 #include <Arduino.h>
 #include "../utils/logger.h"
 
-// Row pins: GPIO 12, 14, 27, 26
-// Column pins: GPIO 33, 32, 4, 2
-const int ROW_PINS[4] = {12, 14, 27, 26};
-const int COL_PINS[4] = {33, 32, 4, 2};
+// ESP32-CAM AI-Thinker Pinout (8 GPIO pins available):
+// Left side: GPIO 12, 13, 15, 14, 2, 4
+// Right side: GPIO 16, 0
+// Row pins: GPIO 14, 15, 16, 0
+//   - GPIO 14 (HS2_CLK) - Left side pin 6
+//   - GPIO 15 (HS2_CMD) - Left side pin 5
+//   - GPIO 16 (U2RXD) - Right side pin 2, shared with PIR
+//   - GPIO 0 (CSI_MCLK) - Right side pin 3, camera clock (can be used as GPIO)
+// Column pins: GPIO 13, 12, 4, 2 (shared with other components)
+//   - GPIO 13: Shared with OLED SCL (I2C) - scan when I2C idle
+//   - GPIO 12: Shared with OLED SDA (I2C) - scan when I2C idle
+//   - GPIO 4: Shared with RFID RST - scan when RFID idle
+//   - GPIO 2: Shared with RFID SS - scan when RFID idle
+const int ROW_PINS[4] = {14, 15, 16, 0};
+const int COL_PINS[4] = {13, 12, 4, 2};
 
 // Key mapping
 // [1] [2] [3] [APPROVE]
@@ -26,17 +37,20 @@ const unsigned long DEBOUNCE_TIME = 20; // 20ms debounce
 
 void keyboard_init() {
   // Set row pins as outputs (HIGH)
+  // Note: GPIO 0 is boot pin - keeping it HIGH prevents boot issues
   for (int i = 0; i < 4; i++) {
     pinMode(ROW_PINS[i], OUTPUT);
     digitalWrite(ROW_PINS[i], HIGH);
   }
   
   // Set column pins as inputs with pull-up
+  // Note: These pins are shared with I2C (12,13) and RFID (2,4)
+  // Keyboard scanning should be done when those peripherals are idle
   for (int i = 0; i < 4; i++) {
     pinMode(COL_PINS[i], INPUT_PULLUP);
   }
   
-  Logger::logInfo("Keyboard: Initialized");
+  Logger::logInfo("Keyboard: Initialized (pins shared with I2C/RFID)");
 }
 
 int keyboard_get_key() {

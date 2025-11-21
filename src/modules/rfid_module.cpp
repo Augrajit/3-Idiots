@@ -3,8 +3,13 @@
 #include <MFRC522.h>
 #include "../utils/logger.h"
 
-#define RFID_SS_PIN 5
-#define RFID_RST_PIN 17
+// ESP32-CAM AI-Thinker Pinout:
+// Left side: GPIO 12, 13, 15, 14, 2, 4
+// Right side: GPIO 16, 0
+// Available GPIO: 0, 2, 4, 12, 13, 14, 15, 16 (8 pins total)
+// RFID uses SPI (default pins: 23-MOSI, 19-MISO, 18-SCK are internal camera pins)
+#define RFID_SS_PIN 2    // GPIO 2 (HS2_DATA0) - Left side pin 7
+#define RFID_RST_PIN 4   // GPIO 4 (HS2_DATA1/FLASH) - Left side pin 8
 
 MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
 bool rfid_initialized = false;

@@ -12,7 +12,10 @@ bool oled_init() {
     return true;
   }
   
-  Wire.begin(21, 22); // SDA, SCL
+  // ESP32-CAM AI-Thinker: Use available GPIO pins for I2C
+  // GPIO 12 (HS2_DATA2) - Left side pin 3
+  // GPIO 13 (HS2_DATA3) - Left side pin 4
+  Wire.begin(12, 13); // SDA=GPIO 12, SCL=GPIO 13
   u8g2.begin();
   u8g2.setFontMode(1);
   u8g2.setFontDirection(0);

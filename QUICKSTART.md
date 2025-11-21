@@ -3,26 +3,30 @@
 ## Hardware Setup
 
 1. **Connect RFID RC522**:
-   - MOSI → GPIO 23
-   - MISO → GPIO 19
-   - CLK → GPIO 18
-   - CS → GPIO 5
-   - RST → GPIO 17
+   - MOSI → GPIO 23 (internal SPI)
+   - MISO → GPIO 19 (internal SPI)
+   - CLK → GPIO 18 (internal SPI)
+   - CS → GPIO 2 ⚠️ (shared with Keyboard Col 4)
+   - RST → GPIO 4 ⚠️ (shared with Keyboard Col 3)
+   - VCC → 3.3V
+   - GND → GND
 
 2. **Connect OLED Display**:
-   - SDA → GPIO 21
-   - SCL → GPIO 22
+   - SDA → GPIO 12 ⚠️ (shared with Keyboard Col 2)
+   - SCL → GPIO 13 ⚠️ (shared with Keyboard Col 1)
    - VCC → 3.3V
    - GND → GND
 
 3. **Connect Matrix Keyboard**:
-   - Rows: GPIO 12, 14, 27, 26
-   - Columns: GPIO 33, 32, 4, 2
+   - Rows: GPIO 14, 15, 16, 0 ⚠️ (GPIO 0 is boot pin, GPIO 16 shared with PIR)
+   - Columns: GPIO 13, 12, 4, 2 ⚠️ (all shared with other components)
 
 4. **Connect PIR Sensor**:
-   - Signal → GPIO 25
+   - Signal → GPIO 16 ⚠️ (shared with Keyboard Row 3)
    - VCC → 5V
    - GND → GND
+
+**⚠️ IMPORTANT:** ESP32-CAM has only 8 GPIO pins available. Pins are shared between components. See PIN_LAYOUT_ESP32CAM.md for details.
 
 5. **ESP32-CAM**: Uses internal camera (no external connections needed)
 
@@ -34,12 +38,14 @@
    ```
 
 2. **Configure WiFi and Server**:
-   Edit `src/main.cpp`:
+   WiFi credentials are already configured in `src/main.cpp`:
    ```cpp
-   config.wifi_ssid = "YourWiFiName";
-   config.wifi_password = "YourPassword";
+   config.wifi_ssid = "BDSET";
+   config.wifi_password = "Bdset@1234";
    config.server_ip = "192.168.1.100";  // Your backend server IP
    ```
+   
+   Note: WiFi credentials are automatically saved to SPIFFS on first boot.
 
 3. **Build and Upload**:
    ```bash

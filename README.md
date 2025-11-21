@@ -23,23 +23,25 @@ This system eliminates the need for physical tokens by using:
 ## 📋 Pin Configuration
 
 ### RFID RC522 (SPI)
-- MOSI: GPIO 23
-- MISO: GPIO 19
-- CLK: GPIO 18
-- CS (SS): GPIO 5
-- RST: GPIO 17
+- MOSI: GPIO 23 (internal SPI)
+- MISO: GPIO 19 (internal SPI)
+- CLK: GPIO 18 (internal SPI)
+- CS (SS): GPIO 2 ⚠️ (shared with Keyboard)
+- RST: GPIO 4 ⚠️ (shared with Keyboard)
 
 ### OLED Display (I2C)
-- SDA: GPIO 21
-- SCL: GPIO 22
+- SDA: GPIO 12 ⚠️ (shared with Keyboard)
+- SCL: GPIO 13 ⚠️ (shared with Keyboard)
 - Address: 0x3C
 
 ### 16-Button Matrix Keyboard
-- Row Pins: GPIO 12, 14, 27, 26
-- Column Pins: GPIO 33, 32, 4, 2
+- Row Pins: GPIO 14, 15, 16, 0 ⚠️ (GPIO 0 is boot pin, GPIO 16 shared with PIR)
+- Column Pins: GPIO 13, 12, 4, 2 ⚠️ (all shared with other components)
 
 ### IR Motion Sensor (PIR)
-- Signal Pin: GPIO 25
+- Signal Pin: GPIO 16 ⚠️ (shared with Keyboard Row 3)
+
+**⚠️ Note:** ESP32-CAM has only 8 GPIO pins available. Pins are shared between components. See `PIN_LAYOUT_ESP32CAM.md` for complete pin assignment details and sharing strategy.
 
 ### ESP32-CAM
 - Uses internal camera interface
@@ -252,17 +254,19 @@ All state transitions, API calls, and errors are logged to Serial at 115200 baud
 
 ## 📝 Configuration
 
-Edit `src/main.cpp` to configure:
+WiFi credentials are configured in `src/main.cpp`:
 
 ```cpp
-config.wifi_ssid = "YOUR_WIFI_SSID";
-config.wifi_password = "YOUR_WIFI_PASSWORD";
-config.server_ip = "192.168.1.100";
+config.wifi_ssid = "BDSET";
+config.wifi_password = "Bdset@1234";
+config.server_ip = "192.168.1.100";  // Update with your backend server IP
 config.server_port = 5000;
 config.motion_timeout_sec = 30;
 config.min_face_confidence = 0.80;
 config.offline_mode_enabled = true;
 ```
+
+Note: Credentials are automatically saved to SPIFFS on first boot. To change them, edit `src/main.cpp` and re-upload.
 
 ## 🔧 Dependencies
 

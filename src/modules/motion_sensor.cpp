@@ -2,7 +2,10 @@
 #include <Arduino.h>
 #include "../utils/logger.h"
 
-#define PIR_PIN 25
+// ESP32-CAM AI-Thinker: GPIO 16 (U2RXD) - Right side pin 2
+// Shared with Keyboard Row 3
+// Note: Read PIR before keyboard scanning to avoid conflicts
+#define PIR_PIN 16  // GPIO 16 (U2RXD), shared with Keyboard Row 3
 #define MOTION_DEBOUNCE_MS 2000 // 2 seconds
 
 bool motion_state = false;
